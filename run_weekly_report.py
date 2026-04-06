@@ -347,6 +347,10 @@ def run():
     if settings.google_client_id and settings.google_client_secret:
         logger.info("Uploading to Google Drive...")
         try:
+            import certifi
+            import os
+            os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+            os.environ['SSL_CERT_FILE'] = certifi.where()
             drive = GoogleDriveClient(settings)
             file_meta = drive.upload_file(
                 output_path,
