@@ -14,8 +14,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+from config.settings import Settings
 from shared.llm import ClaudeClient
 from shared.guardrails import check_banned_phrases, validate_no_fabrication_markers
+from integrations.google_drive import GoogleDriveClient
 from agents.research.prompts import SYSTEM_PROMPT, SYNTHESIS_PROMPT_TEMPLATE, SO_WHAT_PROMPT
 from agents.research.formatter import create_brief_document, CATEGORIES
 
@@ -277,11 +279,7 @@ SEARCH_RESULTS = {
 
 def run():
     """Run the synthesis and generate the Word document."""
-    # Build a minimal settings object
-    class MinimalSettings:
-        anthropic_api_key = os.environ["ANTHROPIC_API_KEY"]
-
-    settings = MinimalSettings()
+    settings = Settings.load()
     llm = ClaudeClient(settings)
 
     brief_date = "April 6, 2026"
@@ -343,7 +341,26 @@ def run():
     with open(output_path, "wb") as f:
         f.write(doc_bytes)
 
-    logger.info(f"Report saved to: {output_path}")
+    logger.info(f"Report saved locally: {output_path}")
+
+    # Upload to Google Drive
+    if settings.google_client_id and settings.google_client_secret:
+        logger.info("Uploading to Google Drive...")
+        try:
+            drive = GoogleDriveClient(settings)
+            file_meta = drive.upload_file(
+                output_path,
+                settings.research_brief_folder_id,
+            )
+            drive_link = file_meta.get("webViewLink", "")
+            logger.info(f"Uploaded to Google Drive: {drive_link}")
+            print(f"\nGoogle Drive link: {drive_link}")
+        except Exception as e:
+            logger.warning(f"Google Drive upload failed: {e}")
+            logger.info("You can manually upload the .docx file to Drive.")
+    else:
+        logger.warning("Google credentials not configured — skipping Drive upload.")
+
     print(f"\nWeekly research brief saved: {filename}")
 
 
